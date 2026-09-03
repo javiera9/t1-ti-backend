@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+from authlib.integrations.base_client.errors import AuthlibBaseError
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
@@ -148,7 +149,12 @@ async def connect_callback(server_name: str, request: Request):
     server = _get_or_provision_server(server_name)
     client = get_client(server)
 
-    token = await client.authorize_access_token(request, resource=server["server_url"])
+    try:
+        token = await client.authorize_access_token(request, resource=server["server_url"])
+    except AuthlibBaseError:
+        # Denegado en el AS, o state vencido/no coincide -- mismo caso que
+        # en /auth/callback, ver ese comentario.
+        return RedirectResponse(f"{settings.frontend_url}/dashboard?connect_error={server_name}")
 
     expires_in = token.get("expires_in", 3600)
     token_expires_at = (datetime.now(timezone.utc) + timedelta(seconds=expires_in)).isoformat()

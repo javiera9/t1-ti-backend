@@ -1,3 +1,4 @@
+from authlib.integrations.base_client.errors import AuthlibBaseError
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
@@ -32,9 +33,16 @@ async def callback(request: Request):
     access_token llamando al token endpoint del AS (mandando tambien el
     code_verifier guardado, para PKCE).
     """
-    token = await oauth.as_login.authorize_access_token(
-        request, resource=settings.app_base_url
-    )
+    try:
+        token = await oauth.as_login.authorize_access_token(
+            request, resource=settings.app_base_url
+        )
+    except AuthlibBaseError:
+        # El usuario le dio "Denegar" en la pantalla del AS (o el state
+        # vencio/no coincide) -- el AS vuelve con ?error=... en vez de
+        # ?code=.... Sin este catch, Authlib lanza y FastAPI devuelve 500.
+        return RedirectResponse(f"{settings.frontend_url}/?login_error=1")
+
     claims = decode_jwt_payload(token["access_token"])
     email = claims["email"]
 
