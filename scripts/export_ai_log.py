@@ -14,6 +14,7 @@ El .jsonl de la sesion actual vive en:
 """
 
 import json
+import re
 import sys
 from datetime import datetime
 
@@ -26,13 +27,24 @@ TOOL_SUMMARY_KEYS = {
     "Grep": "pattern",
 }
 
+# Cualquier token largo tipo base64url/hex (asi se ven las API keys, JWTs,
+# client_secrets, etc.) se redacta de los comandos que se resumen -- un
+# ENCRYPTION_KEY real se colo una vez por un comando de verificacion (grep
+# comparando su valor), asi que ahora se filtra automaticamente en vez de
+# confiar en que nunca vuelva a pasar.
+SECRET_LIKE = re.compile(r"\b[A-Za-z0-9_-]{20,}\b")
+
+
+def redact(text):
+    return SECRET_LIKE.sub("[valor-posiblemente-sensible-redactado]", text)
+
 
 def summarize_tool_use(block):
     name = block.get("name", "tool")
     inp = block.get("input", {}) or {}
     key = TOOL_SUMMARY_KEYS.get(name)
     if key and key in inp:
-        val = str(inp[key])
+        val = redact(str(inp[key]))
         if len(val) > 100:
             val = val[:100] + "..."
         return f"`{name}`: {val}"

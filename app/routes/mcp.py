@@ -8,6 +8,7 @@ from app.config import settings
 from app.db import supabase
 from app.dcr import register_dcr_client
 from app.routes.cimd import CIELO_SUR_METADATA_URL
+from app.mcp_client import call_mcp, get_valid_access_token
 from app.mcp_oauth import get_client
 from app.security import encrypt_for_db
 
@@ -174,3 +175,51 @@ async def connect_callback(server_name: str, request: Request):
     ).execute()
 
     return RedirectResponse(f"{settings.frontend_url}/dashboard")
+
+
+def _get_connection_or_404(user_id: str, server: dict) -> dict:
+    res = (
+        supabase.table("mcp_connections")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("mcp_server_id", server["id"])
+        .execute()
+    )
+    if not res.data:
+        raise HTTPException(404, f"No estas conectado a '{server['name']}' todavia")
+    return res.data[0]
+
+
+def _access_token_for(user_id: str, server: dict) -> str:
+    """Junta lo comun a list_tools/call_tool: busca la conexion, consigue un
+    access_token valido (refrescando si hace falta), y si hubo refresh,
+    guarda los campos nuevos antes de devolver el token.
+    """
+    connection = _get_connection_or_404(user_id, server)
+    access_token, updates = get_valid_access_token(server, connection)
+    if updates:
+        supabase.table("mcp_connections").update(updates).eq("id", connection["id"]).execute()
+    return access_token
+
+
+@router.get("/mcp/{server_name}/tools")
+async def list_tools(server_name: str, request: Request):
+    user_id = _require_user(request)
+    server = _get_or_provision_server(server_name)
+    access_token = _access_token_for(user_id, server)
+
+    result = call_mcp(server["server_url"], access_token, "tools/list", {})
+    return result["tools"]
+
+
+@router.post("/mcp/{server_name}/tools/{tool_name}/call")
+async def call_tool(server_name: str, tool_name: str, request: Request):
+    user_id = _require_user(request)
+    server = _get_or_provision_server(server_name)
+    access_token = _access_token_for(user_id, server)
+
+    arguments = await request.json() if await request.body() else {}
+    result = call_mcp(
+        server["server_url"], access_token, "tools/call", {"name": tool_name, "arguments": arguments}
+    )
+    return result

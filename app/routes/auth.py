@@ -80,4 +80,4 @@ async def me(request: Request):
 @router.get("/logout")
 async def logout(request: Request):
     request.session.clear()
-    return RedirectResponse(settings.frontend_url)
+    return RedirectResponse(f"{settings.frontend_url}/?logged_out=1")
