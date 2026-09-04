@@ -4,6 +4,12 @@ IntegraTrip — Tarea 1 de Taller de Integración - Javiera Martínez.
 
 API en Python (FastAPI) que hace de cliente MCP hacia Andes Air (PRE), StayWell (DCR) y Cielo Sur (CMID). El frontend vive aparte, en [`t1-ti-frontend`](https://github.com/javiera9/t1-ti-frontend) (React + Vite).
 
+## URL en producción
+
+**API desplegada: https://t1-t1-backend.onrender.com**
+
+La app para usar (login, conectar MCPs, tools) es el frontend: https://t1-ti-frontend.onrender.com — este backend es solo la API, no sirve HTML.
+
 ## Setup local
 
 ```bash
