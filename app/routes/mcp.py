@@ -15,11 +15,31 @@ from app.security import encrypt_for_db
 router = APIRouter(tags=["mcp"])
 
 # Los 3 MCPs son fijos y conocidos -- no hay que pedirle al usuario que
-# escriba URLs. protocol es solo para mostrar el badge en el frontend.
+# escriba URLs. protocol es solo para mostrar el badge en el frontend; icon
+# y description son solo para la UI, se agregan aca para que el frontend no
+# tenga que duplicar esta lista.
 FIXED_SERVERS = [
-    {"name": "andes_air", "label": "Andes Air", "protocol": "PRE"},
-    {"name": "staywell", "label": "StayWell", "protocol": "DCR"},
-    {"name": "cielo_sur", "label": "Cielo Sur", "protocol": "CMID"},
+    {
+        "name": "andes_air",
+        "label": "Andes Air",
+        "protocol": "PRE",
+        "icon": "✈️",
+        "description": "Busca vuelos entre ciudades de Latinoamerica, EE.UU. y Europa.",
+    },
+    {
+        "name": "staywell",
+        "label": "StayWell",
+        "protocol": "DCR",
+        "icon": "🏨",
+        "description": "Encuentra y reserva alojamiento para tu estadia.",
+    },
+    {
+        "name": "cielo_sur",
+        "label": "Cielo Sur",
+        "protocol": "CMID",
+        "icon": "🌤️",
+        "description": "Consulta el pronostico del clima en tu destino.",
+    },
 ]
 
 # Las 2 URLs de backend donde este servicio corre (local + Render). Se usan
@@ -200,6 +220,21 @@ def _access_token_for(user_id: str, server: dict) -> str:
     if updates:
         supabase.table("mcp_connections").update(updates).eq("id", connection["id"]).execute()
     return access_token
+
+
+@router.delete("/mcp/{server_name}/disconnect")
+async def disconnect(server_name: str, request: Request):
+    """Borra solo la conexion (mcp_connections) de este usuario -- la fila
+    de mcp_servers (el cliente OAuth ya registrado/provisionado) se queda,
+    para no tener que volver a registrar un cliente DCR nuevo cada vez.
+    """
+    user_id = _require_user(request)
+    server_res = supabase.table("mcp_servers").select("id").eq("name", server_name).execute()
+    if server_res.data:
+        supabase.table("mcp_connections").delete().eq("user_id", user_id).eq(
+            "mcp_server_id", server_res.data[0]["id"]
+        ).execute()
+    return {"disconnected": True}
 
 
 @router.get("/mcp/{server_name}/tools")
